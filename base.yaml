@@ -1,0 +1,27 @@
+seed: 42
+paths:
+  raw_dir: data/raw
+  processed: data/processed/processed.csv
+  results: results/
+task:
+  # Name of the target column in the processed dataset.
+  target: survival_label
+split:
+  # Fractions of the dataset reserved for testing and validation.
+  test_size: 0.2
+  val_size: 0.2
+features:
+  # Placeholder for future feature selection strategies (not used in this demo).
+  mode: pathways
+model:
+  # Choose between 'logreg', 'rf', and 'xgboost'. Parameters will be passed to
+  # the underlying scikit‑learn or xgboost classifier. Unsupported names
+  # fall back to logistic regression.
+  name: xgboost
+  params:
+    n_estimators: 300
+    max_depth: 4
+eval:
+  # Number of bootstrap repetitions for confidence interval estimation (not used)
+  bootstrap: 500
+  metrics: [auroc, auprc, accuracy, brier]

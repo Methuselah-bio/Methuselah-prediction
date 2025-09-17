@@ -78,3 +78,39 @@ license.  Please cite Kenta Nakai’s paper when using this data:
 
 The code in this repository is licensed under the MIT license; see
 `LICENSE` for details.
+
+## Experimental cross‑validation and algorithm comparison
+
+Recent advances in aging research suggest that model choice and
+hyperparameter tuning greatly influence predictive performance.  In
+particular, elastic‑net penalised logistic regression often performs
+well relative to other algorithms when features are highly
+correlated, while nonlinear models like support‑vector machines and
+gradient‑boosted trees can capture complex patterns【348516617573011†L170-L198】.
+Supervised learning reviews also emphasise that feature selection,
+stratified cross‑validation and multi‑metric evaluation (e.g., AUROC,
+AUPRC, accuracy and Brier score) are essential for robust
+benchmarking【257543399768406†L260-L329】.
+
+To explore these recommendations, the script `src/train_experiment.py`
+implements a configurable experimental pipeline.  Given a processed
+dataset and a YAML configuration file, it performs stratified
+cross‑validation over multiple algorithms, searches hyperparameters
+via grid search using macro‑averaged one‑vs‑rest ROC AUC as the
+selection criterion and reports averaged metrics across folds.
+
+Run the experiment as follows:
+
+```bash
+cd project
+python src/train_experiment.py --config configs/base.yaml
+```
+
+The `experiment` section of the configuration controls the design:
+
+- `cv_folds`: number of stratified folds (default 5).
+- `algorithms`: list of model names to evaluate (options: `elastic_net_logreg`, `svm`, `xgboost`).
+- `param_grids`: optional hyperparameter grids overriding the defaults.
+
+After running, results are written to `results/experiment_results.json` and
+the best model (based on AUROC) is saved to `results/best_model.joblib`.

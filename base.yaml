@@ -25,3 +25,17 @@ eval:
   # Number of bootstrap repetitions for confidence interval estimation (not used)
   bootstrap: 500
   metrics: [auroc, auprc, accuracy, brier]
+
+# Settings for experimental cross‑validation and hyperparameter tuning.  The
+# `train_experiment.py` script will read these values when present.  The
+# `cv_folds` parameter controls how many stratified folds are used.  The
+# `algorithms` list determines which models to evaluate.  If a parameter
+# grid for a model is supplied here under `param_grids`, it will be used
+# instead of the script’s default values.
+experiment:
+  cv_folds: 5
+  algorithms:
+    - elastic_net_logreg
+    - svm
+    - xgboost
+  param_grids: {}

@@ -62,7 +62,11 @@ evaluate metrics and compute feature importances.
 │   ├── train.py           # train baseline model and report metrics
 │   ├── evaluate.py        # evaluate model on full dataset
 │   ├── interpret.py       # permutation feature importance
-│   └── train_experiment.py # cross‑validated algorithm comparison and hyperparameter tuning
+│   ├── train_experiment.py # cross‑validated algorithm comparison and hyperparameter tuning
+│   ├── merge_datasets.py  # merge multiple processed datasets into one
+│   ├── visualize_experiment.py  # plot bar chart of experiment metrics
+│   └── feature_selection.py  # univariate feature selection diagnostic
+│   └── runner.py       # orchestrate full pipeline (preprocess, merge, train, select features and visualise)
 ├── results/               # metrics and trained models will be written here
 ├── requirements.txt       # Python dependencies
 └── README.md              # this document
@@ -100,7 +104,7 @@ cross‑validation over multiple algorithms, searches hyperparameters
 via grid search using macro‑averaged one‑vs‑rest ROC AUC as the
 selection criterion and reports averaged metrics across folds.
 
-By default the experiment compares elastic‑net logistic regression, support‑vector machines, XGBoost and a **random‑forest classifier**.  You can enable or disable models via the `algorithms` list in the YAML.
+By default the experiment compares elastic‑net logistic regression, support‑vector machines, XGBoost, a **random‑forest classifier** and a **multi‑layer perceptron (MLP)** neural network.  You can enable or disable models via the `algorithms` list in the YAML.
 
 Run the experiment as follows:
 
@@ -112,11 +116,48 @@ python src/train_experiment.py --config configs/base.yaml
 The `experiment` section of the configuration controls the design:
 
 - `cv_folds`: number of stratified folds (default 5).
-  - `algorithms`: list of model names to evaluate (options: `elastic_net_logreg`, `svm`, `xgboost`, `random_forest`).
+  - `algorithms`: list of model names to evaluate (options: `elastic_net_logreg`, `svm`, `xgboost`, `random_forest`, `mlp`).
   - `param_grids`: optional hyperparameter grids overriding the defaults.  A sample grid for `random_forest` is provided in the default `base.yaml`.
 
 After running, results are written to `results/experiment_results.json` and
 the best model (based on AUROC) is saved to `results/best_model.joblib`.
+
+## Automated pipeline with runner.py
+
+To streamline experimentation when adding new datasets, the repository
+provides a convenience script `src/runner.py`.  This wrapper calls
+all the components in sequence: it processes raw data, merges all
+processed CSVs, performs cross‑validated experiments, runs feature
+selection and generates a performance summary plot.  Use it whenever
+you add new raw data files into `data/raw/` or when you want to
+re‑execute the entire pipeline from scratch.
+
+To run the automated pipeline, simply execute:
+
+```bash
+cd project
+python src/runner.py --config configs/base.yaml
+```
+
+The runner will create or update `data/processed/processed.csv`, write
+models and metrics into `results/` and produce two figures:
+
+- `feature_selection.png` – the top features ranked by an ANOVA F‑test.
+- `experiment_summary.png` – a grouped bar chart comparing AUROC,
+  AUPRC, accuracy and Brier score for each algorithm.
+
+If multiple processed CSVs are present, the runner uses
+`merge_datasets.py` to combine them before training.  This design
+makes it easy to expand the dataset with additional yeast lifespan
+measurements or gene expression profiles.
+
+To visualize the performance of each algorithm across metrics, use the
+helper script `src/visualize_experiment.py`.  It reads the JSON results
+and produces a grouped bar chart (saved as `results/experiment_summary.png`):
+
+```bash
+python src/visualize_experiment.py --results-file results/experiment_results.json --output-file results/experiment_summary.png
+```
 
 ### Extending the dataset
 
@@ -127,6 +168,10 @@ raw datasets in `data/raw/` and update `configs/base.yaml` to point to a
 merged `processed.csv`.  For example, you might download a publicly
 available yeast lifespan dataset or gene expression compendium, convert it
 to a CSV with a `survival_label` column and append the new rows to the
-existing processed dataset.  The cross‑validated experiment script will
+existing processed dataset.  A helper script `src/merge_datasets.py` is
+provided to merge multiple processed CSVs: run it with the `--input-dir`
+argument pointing at a directory of processed files (each containing a
+`survival_label` column) and the `--output-file` specifying where to
+write the combined dataset.  The cross‑validated experiment script will
 automatically adapt to the larger dataset and explore the specified
 algorithms.

@@ -65,8 +65,9 @@ evaluate metrics and compute feature importances.
 │   ├── train_experiment.py # cross‑validated algorithm comparison and hyperparameter tuning
 │   ├── merge_datasets.py  # merge multiple processed datasets into one
 │   ├── visualize_experiment.py  # plot bar chart of experiment metrics
-│   └── feature_selection.py  # univariate feature selection diagnostic
-│   └── runner.py       # orchestrate full pipeline (preprocess, merge, train, select features and visualise)
+│   ├── feature_selection.py  # univariate feature selection diagnostic
+│   ├── runner.py       # orchestrate full pipeline (preprocess, merge, train, select features and visualise)
+│   └── stacking_ensemble.py  # train a stacking ensemble combining multiple models
 ├── results/               # metrics and trained models will be written here
 ├── requirements.txt       # Python dependencies
 └── README.md              # this document
@@ -145,6 +146,30 @@ models and metrics into `results/` and produce two figures:
 - `feature_selection.png` – the top features ranked by an ANOVA F‑test.
 - `experiment_summary.png` – a grouped bar chart comparing AUROC,
   AUPRC, accuracy and Brier score for each algorithm.
+
+## Stacking ensemble
+
+While cross‑validation across individual algorithms helps identify the
+best single model, combining models can further improve predictive
+performance.  The script `src/stacking_ensemble.py` constructs a
+stacking classifier that integrates elastic‑net logistic regression,
+random forests, XGBoost and a multi‑layer perceptron.  A logistic
+regression model serves as the meta‑learner.  The ensemble is
+evaluated via stratified cross‑validation and yields an overall
+metric summary saved to `results/ensemble_results.json`.  The final
+trained ensemble is stored as `results/stacking_model.joblib`.
+
+Run the ensemble training as follows:
+
+```bash
+cd project
+python src/stacking_ensemble.py --config configs/base.yaml
+```
+
+This step is optional but recommended when you have aggregated
+multiple datasets or want to push predictive accuracy beyond any
+single model.  You can further customise the ensemble by editing
+`src/stacking_ensemble.py` to adjust base learners or the meta‑learner.
 
 If multiple processed CSVs are present, the runner uses
 `merge_datasets.py` to combine them before training.  This design

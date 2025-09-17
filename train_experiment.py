@@ -40,6 +40,7 @@ from sklearn.model_selection import StratifiedKFold, GridSearchCV, cross_validat
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (
     roc_auc_score,
     average_precision_score,
@@ -127,6 +128,25 @@ def build_models(config: Dict[str, Any]):
     ])
     xgb_param_grid = {**default_param_grids['xgboost'], **user_param_grids.get('xgboost', {})}
     models['xgboost'] = (xgb_pipeline, xgb_param_grid)
+
+    # Random Forest
+    # The random forest classifier is robust to feature scaling, so we do not
+    # apply StandardScaler here.  Use the parameter grid defined in the
+    # configuration file or fall back to reasonable defaults.  Note: Random
+    # forests can handle categorical features encoded as integers but may
+    # perform poorly if the classes are not encoded ordinally.  Ensure that
+    # categorical variables are appropriately encoded in the processed dataset.
+    rf_clf = RandomForestClassifier(random_state=config.get('seed', 42))
+    rf_pipeline = Pipeline([
+        ('clf', rf_clf)
+    ])
+    default_rf_grid = {
+        'clf__n_estimators': [200],
+        'clf__max_depth': [None],
+        'clf__max_features': ['sqrt']
+    }
+    rf_param_grid = {**default_rf_grid, **user_param_grids.get('random_forest', {})}
+    models['random_forest'] = (rf_pipeline, rf_param_grid)
 
     return models
 

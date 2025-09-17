@@ -38,4 +38,16 @@ experiment:
     - elastic_net_logreg
     - svm
     - xgboost
-  param_grids: {}
+    - random_forest
+  param_grids:
+    # Hyperparameters for the random forest classifier used in train_experiment.py.
+    random_forest:
+      # Number of trees in the forest.  Increasing this can improve stability at
+      # the cost of training time.
+      clf__n_estimators: [100, 200]
+      # Maximum depth of each tree.  ``null`` allows trees to expand until all
+      # leaves are pure or contain fewer than ``min_samples_split`` samples.
+      clf__max_depth: [null, 10, 20]
+      # Number of features considered when looking for the best split.  Using
+      # ``sqrt`` or ``log2`` is common for classification tasks.
+      clf__max_features: ["sqrt", "log2"]

@@ -45,7 +45,11 @@ def main() -> None:
     config = yaml.safe_load(open(args.config, "r", encoding="utf-8"))
     processed_path = Path(config["paths"]["processed"])
     results_dir = Path(config["paths"]["results"])
-    model_path = results_dir / "model.joblib"
+    # Prefer the best model saved by train_experiment.py ("best_model.joblib")
+    # if it exists; fall back to the default model filename.
+    best_model_path = results_dir / "best_model.joblib"
+    default_model_path = results_dir / "model.joblib"
+    model_path = best_model_path if best_model_path.exists() else default_model_path
     plot_path = results_dir / "feature_importance.png"
     # Load data and model
     df = pd.read_csv(processed_path)

@@ -61,7 +61,8 @@ evaluate metrics and compute feature importances.
 │   ├── prepare_data.py    # preprocess raw data
 │   ├── train.py           # train baseline model and report metrics
 │   ├── evaluate.py        # evaluate model on full dataset
-│   └── interpret.py       # permutation feature importance
+│   ├── interpret.py       # permutation feature importance
+│   └── train_experiment.py # cross‑validated algorithm comparison and hyperparameter tuning
 ├── results/               # metrics and trained models will be written here
 ├── requirements.txt       # Python dependencies
 └── README.md              # this document
@@ -99,6 +100,8 @@ cross‑validation over multiple algorithms, searches hyperparameters
 via grid search using macro‑averaged one‑vs‑rest ROC AUC as the
 selection criterion and reports averaged metrics across folds.
 
+By default the experiment compares elastic‑net logistic regression, support‑vector machines, XGBoost and a **random‑forest classifier**.  You can enable or disable models via the `algorithms` list in the YAML.
+
 Run the experiment as follows:
 
 ```bash
@@ -109,8 +112,21 @@ python src/train_experiment.py --config configs/base.yaml
 The `experiment` section of the configuration controls the design:
 
 - `cv_folds`: number of stratified folds (default 5).
-- `algorithms`: list of model names to evaluate (options: `elastic_net_logreg`, `svm`, `xgboost`).
-- `param_grids`: optional hyperparameter grids overriding the defaults.
+  - `algorithms`: list of model names to evaluate (options: `elastic_net_logreg`, `svm`, `xgboost`, `random_forest`).
+  - `param_grids`: optional hyperparameter grids overriding the defaults.  A sample grid for `random_forest` is provided in the default `base.yaml`.
 
 After running, results are written to `results/experiment_results.json` and
 the best model (based on AUROC) is saved to `results/best_model.joblib`.
+
+### Extending the dataset
+
+The demo currently relies on the UCI Yeast localisation dataset, which has
+little direct relevance to ageing.  To make the pipeline more useful for
+chronological or replicative lifespan prediction, you can supply additional
+raw datasets in `data/raw/` and update `configs/base.yaml` to point to a
+merged `processed.csv`.  For example, you might download a publicly
+available yeast lifespan dataset or gene expression compendium, convert it
+to a CSV with a `survival_label` column and append the new rows to the
+existing processed dataset.  The cross‑validated experiment script will
+automatically adapt to the larger dataset and explore the specified
+algorithms.

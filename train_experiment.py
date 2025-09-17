@@ -37,8 +37,8 @@ import yaml
 from sklearn.compose import ColumnTransformer
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold, GridSearchCV, cross_validate
-from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+from sklearn.neural_network import MLPClassifier
 from sklearn.svm import SVC
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (
@@ -50,6 +50,18 @@ from sklearn.metrics import (
 )
 from sklearn.preprocessing import label_binarize
 from xgboost import XGBClassifier
+
+# Optional: oversampling support for imbalanced datasets.  When enabled in
+# the configuration (experiment.use_oversampling: true), training
+# pipelines will incorporate a RandomOverSampler step to balance class
+# frequencies.  If imbalanced‑learn is not installed, the oversampling
+# step is silently skipped.
+try:
+    from imblearn.over_sampling import RandomOverSampler
+    from imblearn.pipeline import Pipeline as ImbPipeline
+except ImportError:  # pragma: no cover
+    RandomOverSampler = None  # type: ignore
+    ImbPipeline = None  # type: ignore
 
 
 def load_config(config_path: str) -> Dict[str, Any]:
@@ -93,6 +105,14 @@ def build_models(config: Dict[str, Any]):
             'clf__n_estimators': [100, 200],
             'clf__max_depth': [3, 5],
             'clf__learning_rate': [0.1, 0.01]
+        },
+        # Multi‑layer perceptron classifier.  We explore a small set of
+        # architectures, activation functions and regularization values.
+        'mlp': {
+            'clf__hidden_layer_sizes': [(50,), (50, 50), (100,), (100, 50)],
+            'clf__activation': ['relu', 'tanh'],
+            'clf__alpha': [1e-4, 1e-3],
+            'clf__learning_rate_init': [1e-3, 1e-2]
         }
     }
     # Override with user‑specified grids
@@ -100,11 +120,31 @@ def build_models(config: Dict[str, Any]):
     # Build model pipelines
     models = {}
     # Common numeric preprocessing: standardize continuous features
+    use_oversampling = bool(config.get('experiment', {}).get('use_oversampling', False))
+
     def numeric_pipeline(clf):
-        return Pipeline([
-            ('scaler', StandardScaler()),
-            ('clf', clf)
-        ])
+        """
+        Construct a preprocessing and classifier pipeline.  If
+        ``use_oversampling`` is enabled and imbalanced‑learn is available,
+        prepend a RandomOverSampler step to rebalance the classes on
+        each cross‑validation fold.  StandardScaler is applied to
+        continuous features prior to classification.
+        """
+        steps = []
+        # Insert oversampler first so that scaling and modeling operate on
+        # the resampled dataset.  This step is skipped if imbalanced‑learn
+        # is unavailable or oversampling is disabled.
+        if use_oversampling and RandomOverSampler is not None:
+            steps.append(('oversampler', RandomOverSampler()))
+        steps.append(('scaler', StandardScaler()))
+        steps.append(('clf', clf))
+        # Choose appropriate pipeline class: use imblearn.pipeline if
+        # oversampling is required, otherwise fall back to sklearn.pipeline.
+        if use_oversampling and RandomOverSampler is not None and ImbPipeline is not None:
+            return ImbPipeline(steps)
+        else:
+            from sklearn.pipeline import Pipeline  # Local import to avoid circular import
+            return Pipeline(steps)
 
     # Elastic‑net logistic regression (saga solver supports elastic net)
     lr_pipeline = numeric_pipeline(
@@ -123,9 +163,17 @@ def build_models(config: Dict[str, Any]):
     # XGBoost
     xgb_clf = XGBClassifier(objective='binary:logistic', eval_metric='auc', use_label_encoder=False, n_jobs=1)
     # XGBoost often performs well without scaling
-    xgb_pipeline = Pipeline([
-        ('clf', xgb_clf)
-    ])
+    # XGBoost pipeline.  Scaling is not required; oversampling can be
+    # inserted when requested.
+    xgb_steps = []
+    if use_oversampling and RandomOverSampler is not None:
+        xgb_steps.append(('oversampler', RandomOverSampler()))
+    xgb_steps.append(('clf', xgb_clf))
+    if use_oversampling and RandomOverSampler is not None and ImbPipeline is not None:
+        xgb_pipeline = ImbPipeline(xgb_steps)
+    else:
+        from sklearn.pipeline import Pipeline
+        xgb_pipeline = Pipeline(xgb_steps)
     xgb_param_grid = {**default_param_grids['xgboost'], **user_param_grids.get('xgboost', {})}
     models['xgboost'] = (xgb_pipeline, xgb_param_grid)
 
@@ -137,9 +185,17 @@ def build_models(config: Dict[str, Any]):
     # perform poorly if the classes are not encoded ordinally.  Ensure that
     # categorical variables are appropriately encoded in the processed dataset.
     rf_clf = RandomForestClassifier(random_state=config.get('seed', 42))
-    rf_pipeline = Pipeline([
-        ('clf', rf_clf)
-    ])
+    # Random forest pipeline.  Include oversampler when enabled.  Scaling is
+    # generally unnecessary for tree‑based models.
+    rf_steps = []
+    if use_oversampling and RandomOverSampler is not None:
+        rf_steps.append(('oversampler', RandomOverSampler()))
+    rf_steps.append(('clf', rf_clf))
+    if use_oversampling and RandomOverSampler is not None and ImbPipeline is not None:
+        rf_pipeline = ImbPipeline(rf_steps)
+    else:
+        from sklearn.pipeline import Pipeline  # Local import
+        rf_pipeline = Pipeline(rf_steps)
     default_rf_grid = {
         'clf__n_estimators': [200],
         'clf__max_depth': [None],
@@ -147,6 +203,18 @@ def build_models(config: Dict[str, Any]):
     }
     rf_param_grid = {**default_rf_grid, **user_param_grids.get('random_forest', {})}
     models['random_forest'] = (rf_pipeline, rf_param_grid)
+
+    # Multi‑layer Perceptron (MLP) classifier
+    # The MLP classifier benefits from feature scaling; we wrap it in the
+    # numeric pipeline.  Use the parameter grid defined above or override via
+    # the configuration file under ``param_grids.mlp``.  Note that MLP
+    # training can be sensitive to the ``max_iter`` parameter; we set a
+    # relatively high number of iterations to encourage convergence.
+    mlp_clf = MLPClassifier(max_iter=300, random_state=config.get('seed', 42))
+    mlp_pipeline = numeric_pipeline(mlp_clf)
+    default_mlp_grid = default_param_grids['mlp']
+    mlp_param_grid = {**default_mlp_grid, **user_param_grids.get('mlp', {})}
+    models['mlp'] = (mlp_pipeline, mlp_param_grid)
 
     return models
 

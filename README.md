@@ -42,12 +42,28 @@ evaluate metrics and compute feature importances.
    python src/evaluate.py --config configs/base.yaml
    ```
 
-5. **Interpret the model** via permutation feature importance (writes
-   `feature_importance.png` into the results directory):
+5. **Interpret the model**.  Two complementary interpretability
+   methods are provided:
 
-   ```bash
-   python src/interpret.py --config configs/base.yaml
-   ```
+   * **Permutation importance**, which measures the drop in
+     performance when each feature is shuffled, producing a
+     bar chart (`feature_importance.png`).  Run:
+
+     ```bash
+     python src/interpret.py --config configs/base.yaml
+     ```
+
+   * **SHAP values**, which attribute individual predictions to
+     feature contributions.  The script `interpret_shap.py` writes a
+     summary plot (`shap_summary.png`) if the optional `shap` package
+     is installed:
+
+     ```bash
+     python src/interpret_shap.py --config configs/base.yaml
+     ```
+
+     You may need to install the extra dependency with
+     `pip install shap`.
 
 ## Directory structure
 
@@ -67,8 +83,13 @@ evaluate metrics and compute feature importances.
 │   ├── visualize_experiment.py  # plot bar chart of experiment metrics
 │   ├── feature_selection.py  # univariate feature selection diagnostic
 │   ├── runner.py       # orchestrate full pipeline (preprocess, merge, train, select features and visualise)
-│   └── stacking_ensemble.py  # train a stacking ensemble combining multiple models
+│   ├── stacking_ensemble.py  # train a stacking ensemble combining multiple models
 │   ├── train_nested_cv.py  # nested cross‑validation for unbiased hyperparameter selection
+│   ├── eda.py             # exploratory data analysis (stats, correlation, UMAP)
+│   ├── interpret_shap.py  # model interpretation using SHAP values
+│   ├── automl.py          # AutoML search via FLAML
+│   ├── advanced_models.py # skeletons for transformers, survival and graph models
+│   └── __init__.py        # allow tests to import src as a package
 ├── results/               # metrics and trained models will be written here
 ├── requirements.txt       # Python dependencies
 └── README.md              # this document
@@ -245,3 +266,85 @@ true` in the configuration.  Oversampling is applied ahead of feature
 scaling to rebalance the classes.  If the optional
 `imbalanced‑learn` package is not installed, the oversampling step is
 silently skipped.
+
+### Exploratory data analysis (EDA)
+
+Before fitting any model, it is good practice to explore your data.
+The `src/eda.py` script computes descriptive statistics for each
+numeric feature, draws a correlation heatmap and embeds samples into
+two dimensions using UMAP (if available) or t‑SNE.  These plots can
+reveal skewed distributions, correlated features, batch effects and
+class separability.
+
+```bash
+python src/eda.py --config configs/base.yaml
+```
+
+This command writes three files into the results directory:
+
+* `eda_stats.json` – JSON summary statistics for each numeric feature.
+* `eda_correlation.png` – Heatmap of pairwise Pearson correlations.
+* `eda_embedding.png` – 2D scatter plot of UMAP/t‑SNE coloured by the target.
+
+### Automated machine learning (AutoML)
+
+For broader model discovery and hyperparameter optimisation, the script
+`src/automl.py` uses the [FLAML](https://github.com/microsoft/FLAML)
+AutoML library.  FLAML searches a large space of algorithms and
+configurations efficiently.  Set a time budget (in seconds) and run:
+
+```bash
+python src/automl.py --config configs/base.yaml --time-budget 300
+```
+
+The best model and its parameters are saved to
+`results/automl_model.joblib` and `results/automl_best_params.json`.  Note
+that FLAML requires the optional `flaml` package listed in
+`requirements.txt`.
+
+### Advanced models
+
+Modern bioinformatics leverages a variety of specialised models.  The
+module `src/advanced_models.py` contains placeholders for
+transformer‑based sequence classifiers, survival analysis via Cox
+proportional hazards and graph neural networks.  These models are not
+fully implemented but illustrate how one could integrate such
+approaches into the pipeline.  Implementing them requires
+dependencies like `transformers`, `torch`, and `lifelines`, and
+domain‑specific feature engineering.
+
+### Unit tests and continuous integration
+
+To ensure robustness, a minimal test suite resides in the `tests/`
+directory.  The tests can be run locally using `pytest` (included in
+`requirements.txt`):
+
+```bash
+pytest -q
+```
+
+A GitHub Actions workflow defined in `.github/workflows/ci.yml` runs
+the tests automatically on each push.  This helps catch errors early
+when extending the project.
+
+### Docker and reproducible builds
+
+A `Dockerfile` is provided to build a container with all
+dependencies pinned to specific versions.  Building the image ensures
+that your environment matches the one used for development:
+
+```bash
+docker build -t methuselah-prediction .
+docker run --rm -v $(pwd):/workspace -w /workspace methuselah-prediction \
+  python src/runner.py --config configs/base.yaml
+```
+
+### Contributing
+
+We welcome contributions of code, datasets and documentation.  If you
+add a new dataset, please include licensing information and update the
+configuration file.  For new code, ensure that tests are added and
+that the README and requirements are updated accordingly.  See
+`CONTRIBUTING.md` for detailed guidelines, including our expectations
+regarding coding standards, ethics and bias considerations in ageing
+research.

@@ -4,17 +4,63 @@ paths:
   processed: data/processed/processed.csv
   results: results/
 task:
-  target: survival_label   # {short,long} or 0/1
+  # Name of the target column in the processed dataset.
+  target: survival_label
 split:
+  # Fractions of the dataset reserved for testing and validation.
   test_size: 0.2
   val_size: 0.2
 features:
-  mode: pathways           # {genes,pathways}  (stub for now)
+  # Placeholder for future feature selection strategies (not used in this demo).
+  mode: pathways
 model:
-  name: xgboost            # {logreg,rf,xgboost}
+  # Choose between 'logreg', 'rf', and 'xgboost'. Parameters will be passed to
+  # the underlying scikit‑learn or xgboost classifier. Unsupported names
+  # fall back to logistic regression.
+  name: xgboost
   params:
     n_estimators: 300
     max_depth: 4
 eval:
+  # Number of bootstrap repetitions for confidence interval estimation (not used)
   bootstrap: 500
   metrics: [auroc, auprc, accuracy, brier]
+
+# Settings for experimental cross‑validation and hyperparameter tuning.  The
+# `train_experiment.py` script will read these values when present.  The
+# `cv_folds` parameter controls how many stratified folds are used.  The
+# `algorithms` list determines which models to evaluate.  If a parameter
+# grid for a model is supplied here under `param_grids`, it will be used
+# instead of the script’s default values.
+experiment:
+  cv_folds: 5
+  algorithms:
+    - elastic_net_logreg
+    - svm
+    - xgboost
+    - random_forest
+    - mlp
+  param_grids:
+    # Hyperparameters for the random forest classifier used in train_experiment.py.
+    random_forest:
+      # Number of trees in the forest.  Increasing this can improve stability at
+      # the cost of training time.
+      clf__n_estimators: [100, 200]
+      # Maximum depth of each tree.  ``null`` allows trees to expand until all
+      # leaves are pure or contain fewer than ``min_samples_split`` samples.
+      clf__max_depth: [null, 10, 20]
+      # Number of features considered when looking for the best split.  Using
+      # ``sqrt`` or ``log2`` is common for classification tasks.
+      clf__max_features: ["sqrt", "log2"]
+    # Hyperparameters for the multi‑layer perceptron classifier.  Adjust these
+    # values to explore different network topologies, activation functions and
+    # regularization.  Each list of values will be combined in a grid search.
+    mlp:
+      clf__hidden_layer_sizes:
+        - [50]
+        - [50, 50]
+        - [100]
+        - [100, 50]
+      clf__activation: ["relu", "tanh"]
+      clf__alpha: [0.0001, 0.001]
+      clf__learning_rate_init: [0.001, 0.01]

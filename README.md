@@ -68,6 +68,7 @@ evaluate metrics and compute feature importances.
 │   ├── feature_selection.py  # univariate feature selection diagnostic
 │   ├── runner.py       # orchestrate full pipeline (preprocess, merge, train, select features and visualise)
 │   └── stacking_ensemble.py  # train a stacking ensemble combining multiple models
+│   ├── train_nested_cv.py  # nested cross‑validation for unbiased hyperparameter selection
 ├── results/               # metrics and trained models will be written here
 ├── requirements.txt       # Python dependencies
 └── README.md              # this document
@@ -105,7 +106,7 @@ cross‑validation over multiple algorithms, searches hyperparameters
 via grid search using macro‑averaged one‑vs‑rest ROC AUC as the
 selection criterion and reports averaged metrics across folds.
 
-By default the experiment compares elastic‑net logistic regression, support‑vector machines, XGBoost, a **random‑forest classifier** and a **multi‑layer perceptron (MLP)** neural network.  You can enable or disable models via the `algorithms` list in the YAML.
+By default the experiment compares elastic‑net logistic regression, support‑vector machines, XGBoost, a **random‑forest classifier** and a **multi‑layer perceptron (MLP)** neural network.  A **RandomOverSampler** can be inserted before scaling and classification when the `use_oversampling` flag is enabled in the config.  You can enable or disable models via the `algorithms` list in the YAML.
 
 Run the experiment as follows:
 
@@ -118,6 +119,7 @@ The `experiment` section of the configuration controls the design:
 
 - `cv_folds`: number of stratified folds (default 5).
   - `algorithms`: list of model names to evaluate (options: `elastic_net_logreg`, `svm`, `xgboost`, `random_forest`, `mlp`).
+  - `use_oversampling`: enable a RandomOverSampler for class imbalance.
   - `param_grids`: optional hyperparameter grids overriding the defaults.  A sample grid for `random_forest` is provided in the default `base.yaml`.
 
 After running, results are written to `results/experiment_results.json` and
@@ -200,3 +202,46 @@ argument pointing at a directory of processed files (each containing a
 write the combined dataset.  The cross‑validated experiment script will
 automatically adapt to the larger dataset and explore the specified
 algorithms.
+
+## Nested cross‑validation
+
+When tuning a large number of hyperparameters or comparing many
+algorithms, a single cross‑validation loop can produce optimistic
+estimates because the same data are used both to select hyperparameters
+and to evaluate performance.  Nested cross‑validation mitigates this
+issue by introducing an outer test fold: for each outer fold, a grid
+search is run on the training portion using an inner cross‑validation
+loop to select hyperparameters, and the resulting best model is
+evaluated on the held‑out outer fold.  Averaging over outer folds
+provides an unbiased estimate of how the model will perform on new
+data.
+
+The script `src/train_nested_cv.py` implements nested cross‑validation for
+all algorithms defined in the configuration.  Enable it by adding a
+`nested_cv` section to your YAML config:
+
+```yaml
+nested_cv:
+  enabled: true
+  outer_folds: 5
+  inner_folds: 3
+```
+
+and run:
+
+```bash
+python src/train_nested_cv.py --config configs/base.yaml
+```
+
+Results will be written to `results/nested_cv_results.json` and the best
+model (across both loops) will be saved as `best_model_nested.joblib`.
+
+### Oversampling for imbalanced datasets
+
+Biological datasets often exhibit class imbalance (e.g., rare
+phenotypes).  You can instruct the training pipelines to apply a
+RandomOverSampler to each fold by setting `experiment.use_oversampling:
+true` in the configuration.  Oversampling is applied ahead of feature
+scaling to rebalance the classes.  If the optional
+`imbalanced‑learn` package is not installed, the oversampling step is
+silently skipped.

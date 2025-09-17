@@ -39,6 +39,13 @@ experiment:
     - svm
     - xgboost
     - random_forest
+    - mlp
+  # If set to true, a RandomOverSampler will be applied within the training
+  # pipelines during cross‑validation.  This balances class frequencies in
+  # the training folds and can improve performance when the target classes
+  # are highly imbalanced.  If the `imbalanced‑learn` package is not
+  # installed, oversampling will be silently skipped.
+  use_oversampling: false
   param_grids:
     # Hyperparameters for the random forest classifier used in train_experiment.py.
     random_forest:
@@ -51,3 +58,29 @@ experiment:
       # Number of features considered when looking for the best split.  Using
       # ``sqrt`` or ``log2`` is common for classification tasks.
       clf__max_features: ["sqrt", "log2"]
+    # Hyperparameters for the multi‑layer perceptron classifier.  Adjust these
+    # values to explore different network topologies, activation functions and
+    # regularization.  Each list of values will be combined in a grid search.
+    mlp:
+      clf__hidden_layer_sizes:
+        - [50]
+        - [50, 50]
+        - [100]
+        - [100, 50]
+      clf__activation: ["relu", "tanh"]
+      clf__alpha: [0.0001, 0.001]
+      clf__learning_rate_init: [0.001, 0.01]
+
+# Settings for nested cross‑validation.  When enabled, the script
+# `train_nested_cv.py` (to be added) will perform an outer/inner
+# cross‑validation loop: for each outer fold, a grid search is run on
+# the training portion using the specified number of inner folds.  The
+# best hyperparameters from each inner loop are evaluated on the
+# corresponding outer test fold.  The outer results provide an
+# unbiased estimate of generalization performance.  Adjust `outer_folds`
+# and `inner_folds` to control the level of nesting.  Set
+# `enabled: false` to disable nested CV by default.
+nested_cv:
+  enabled: false
+  outer_folds: 5
+  inner_folds: 3

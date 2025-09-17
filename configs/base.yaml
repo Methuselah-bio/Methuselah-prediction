@@ -1,0 +1,20 @@
+seed: 42
+paths:
+  raw_dir: data/raw
+  processed: data/processed/processed.csv
+  results: results/
+task:
+  target: survival_label   # {short,long} or 0/1
+split:
+  test_size: 0.2
+  val_size: 0.2
+features:
+  mode: pathways           # {genes,pathways}  (stub for now)
+model:
+  name: xgboost            # {logreg,rf,xgboost}
+  params:
+    n_estimators: 300
+    max_depth: 4
+eval:
+  bootstrap: 500
+  metrics: [auroc, auprc, accuracy, brier]
